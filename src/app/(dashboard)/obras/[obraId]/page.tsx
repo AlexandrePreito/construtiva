@@ -14,6 +14,7 @@ import {
   BRAZIL_STATE_CODES,
   brazilStates,
   type BrazilState,
+  type BrazilUF,
 } from "@/lib/brazil-locations";
 
 const stateEnum = z.enum(BRAZIL_STATE_CODES);
@@ -57,6 +58,12 @@ export default function EditarObraPage({
   const obra = getObra(params.obraId);
 
   const foiCriadaAgora = searchParams.get("created") === "1";
+  const estadoInicial: BrazilUF | "" = obra?.estado
+    ? (() => {
+        const uf = obra.estado.toUpperCase() as BrazilUF;
+        return BRAZIL_STATE_CODES.includes(uf) ? uf : "";
+      })()
+    : "";
 
   const mensagemTopo = useMemo(() => {
     if (!obra) return null;
@@ -75,7 +82,7 @@ export default function EditarObraPage({
     values: obra
       ? {
           nome: obra.nome,
-          estado: obra.estado ?? "",
+          estado: estadoInicial,
           cidade: obra.cidade ?? "",
           endereco: obra.endereco ?? "",
         }

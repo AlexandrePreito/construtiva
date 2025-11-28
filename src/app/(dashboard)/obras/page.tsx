@@ -33,7 +33,7 @@ const obraFormSchema = z.object({
   endereco: z.string().optional().default(""),
 });
 
-type ObraFormValues = z.infer<typeof obraFormSchema>;
+type ObraFormValues = z.input<typeof obraFormSchema>;
 
 type FiltrosAplicados = {
   nome: string;

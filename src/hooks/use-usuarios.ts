@@ -13,7 +13,10 @@ export type UsuarioAppRegistro = {
   criadoPor: string | null;
 };
 
-type UsuarioAppRow = Database["public"]["Tables"]["usuarios_app"]["Row"];
+type UsuarioAppRow = Pick<
+  Database["public"]["Tables"]["usuarios_app"]["Row"],
+  "id" | "nome" | "senha_hash" | "criado_em" | "criado_por"
+>;
 type UsuarioAppInsert = Database["public"]["Tables"]["usuarios_app"]["Insert"];
 
 function mapUsuarios(rows: UsuarioAppRow[]): UsuarioAppRegistro[] {

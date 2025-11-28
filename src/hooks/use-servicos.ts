@@ -11,6 +11,7 @@ export type ServicoRegistro = {
   corHex: string;
   criadoEm: string;
   agrupamentoId: string | null;
+  filhos?: ServicoRegistro[];
 };
 
 type ServicoRow = Database["public"]["Tables"]["servicos"]["Row"] & {
@@ -18,16 +19,43 @@ type ServicoRow = Database["public"]["Tables"]["servicos"]["Row"] & {
 };
 
 function mapServicos(rows: ServicoRow[]): ServicoRegistro[] {
-  return rows
-    .map((row) => ({
-      id: row.id,
-      obraId: row.obra_id,
-      nome: row.nome ?? "Serviço sem nome",
-      corHex: row.cor_hex ?? "#2563EB",
-      criadoEm: row.criado_em ?? new Date().toISOString(),
-      agrupamentoId: row.agrupador_id ?? null,
-    }))
-    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  const registros = rows.map<ServicoRegistro>((row) => ({
+    id: row.id,
+    obraId: row.obra_id,
+    nome: row.nome ?? "Serviço sem nome",
+    corHex: row.cor_hex ?? "#2563EB",
+    criadoEm: row.criado_em ?? new Date().toISOString(),
+    agrupamentoId: row.agrupador_id ?? null,
+  }));
+
+  const porId = new Map<string, ServicoRegistro>();
+  registros.forEach((servico) => {
+    porId.set(servico.id, { ...servico });
+  });
+
+  const resultado: ServicoRegistro[] = [];
+
+  porId.forEach((servico) => {
+    if (servico.agrupamentoId && porId.has(servico.agrupamentoId)) {
+      const pai = porId.get(servico.agrupamentoId)!;
+      if (!pai.filhos) {
+        pai.filhos = [];
+      }
+      pai.filhos.push(servico);
+      return;
+    }
+    resultado.push(servico);
+  });
+
+  resultado.forEach((servico) => {
+    if (servico.filhos?.length) {
+      servico.filhos = servico.filhos
+        .map((filho) => (porId.get(filho.id) ?? filho))
+        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    }
+  });
+
+  return resultado.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
 export function useServicos(obraId: string | null) {

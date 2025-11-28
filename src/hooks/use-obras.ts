@@ -6,7 +6,10 @@ import { obraSchema, type Obra } from "@/lib/schema";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
 
-type ObraRow = Database["public"]["Tables"]["obras"]["Row"];
+type ObraRow = Pick<
+  Database["public"]["Tables"]["obras"]["Row"],
+  "id" | "nome" | "cidade" | "estado" | "endereco" | "criado_em" | "atualizado_em"
+>;
 
 type ObraInput = Omit<Obra, "id" | "criadoEm" | "atualizadoEm"> & {
   id?: string;

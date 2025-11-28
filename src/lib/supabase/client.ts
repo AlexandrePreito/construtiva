@@ -23,3 +23,4 @@
 
      return globalForSupabase.supabaseBrowser;
    }
+

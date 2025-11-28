@@ -108,7 +108,7 @@ export const accessLogSchema = z.object({
       "gerenciar_usuario",
     ])
     .default("login"),
-  detalhes: z.record(z.any()).optional(),
+  detalhes: z.record(z.string(), z.unknown()).optional(),
   criadoEm: z.string().datetime().nullable(),
 });
 

@@ -40,6 +40,7 @@ export type Database = {
           obra_id: string;
           nome: string | null;
           cor_hex: string | null;
+          agrupador_id: string | null;
           criado_em: string | null;
         };
         Insert: {
@@ -47,6 +48,7 @@ export type Database = {
           obra_id: string;
           nome?: string | null;
           cor_hex?: string | null;
+          agrupador_id?: string | null;
           criado_em?: string | null;
         };
         Update: {
@@ -54,6 +56,7 @@ export type Database = {
           obra_id?: string;
           nome?: string | null;
           cor_hex?: string | null;
+          agrupador_id?: string | null;
           criado_em?: string | null;
         };
         Relationships: [
