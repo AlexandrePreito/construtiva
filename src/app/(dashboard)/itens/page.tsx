@@ -33,8 +33,8 @@ const editSchema = z.object({
   descricao: z.string().max(200).optional().transform((valor) => valor ?? ""),
 });
 
-type ItemFormValues = z.output<typeof itemSchema>;
-type EditFormValues = z.output<typeof editSchema>;
+type ItemFormValues = z.input<typeof itemSchema>;
+type EditFormValues = z.input<typeof editSchema>;
 
 export default function ItensPage() {
   const { obras, isReady: obrasReady } = useObras();
