@@ -374,4 +374,14 @@ export default function ItensPage() {
                         checked={todasSelecionadas}
                         onChange={() => {
                           if (todasSelecionadas) {
-                            setItensSelecionados((current్
+                            setItensSelecionados((current) =>
+                              current.filter((id) => !itensFiltrados.some((item) => item.id === id)),
+                            );
+                          } else {
+                            setItensSelecionados((current) => {
+                              const conjunto = new Set(current);
+                              itensFiltrados.forEach((item) => conjunto.add(item.id));
+                              return Array.from(conjunto);
+                            });
+                          }
+                        }}
