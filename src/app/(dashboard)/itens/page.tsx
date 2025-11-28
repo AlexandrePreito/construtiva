@@ -25,16 +25,16 @@ import { useItens, type ItemRegistro } from "@/hooks/use-itens";
 const itemSchema = z.object({
   obraId: z.string().min(1, "Selecione a obra"),
   nome: z.string().min(2, "Informe o nome do item"),
-  descricao: z.string().max(200).optional(),
+  descricao: z.string().max(200).optional().or(z.literal("")),
 });
 
 const editSchema = z.object({
   nome: z.string().min(2, "Informe o nome do item"),
-  descricao: z.string().max(200).optional(),
+  descricao: z.string().max(200).optional().or(z.literal("")),
 });
 
-type ItemFormValues = z.infer<typeof itemSchema>;
-type EditFormValues = z.infer<typeof editSchema>;
+type ItemFormValues = z.output<typeof itemSchema>;
+type EditFormValues = z.output<typeof editSchema>;
 
 export default function ItensPage() {
   const { obras, isReady: obrasReady } = useObras();
