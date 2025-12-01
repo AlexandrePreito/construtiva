@@ -15,11 +15,14 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
   Download,
   Eye,
   EyeOff,
   Filter,
   Loader2,
+  Minus,
+  Plus,
   X,
 } from "lucide-react";
 import clsx from "clsx";
@@ -208,14 +211,13 @@ export default function LobClientPage() {
   });
   const [mesVisivelIndex, setMesVisivelIndex] = useState(0);
   const [mostrarVisaoCompleta, setMostrarVisaoCompleta] = useState(false);
-
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const compactWrapperRef = useRef<HTMLDivElement | null>(null);
   const compactContentRef = useRef<HTMLDivElement | null>(null);
   const timelineContentRef = useRef<HTMLDivElement | null>(null);
 
-  const [compactScale, setCompactScale] = useState(1);
-  const [compactDimensions, setCompactDimensions] = useState({ width: 0, height: 0 });
+  const [compactFitScale, setCompactFitScale] = useState(1);
+  const [zoomNivel, setZoomNivel] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
 
   const { linhas, isReady: cronogramaReady } = useCronograma(obraSelecionada);
@@ -223,6 +225,20 @@ export default function LobClientPage() {
   const { etapas: etapasDaObra } = useEtapas(obraSelecionada);
 
   const normalizar = useCallback((valor: string) => valor.trim().toLowerCase(), []);
+  const appliedScale = useMemo(() => compactFitScale * zoomNivel, [compactFitScale, zoomNivel]);
+
+
+  const alterarZoom = useCallback((step: number) => {
+    setZoomNivel((current) => {
+      const next = Math.min(6, Math.max(0.2, Math.round((current + step) * 10) / 10));
+      return next;
+    });
+  }, []);
+
+  const obraAtual = useMemo(
+    () => obras.find((obra) => obra.id === obraSelecionada) ?? null,
+    [obras, obraSelecionada],
+  );
 
   const tarefasBase = useMemo(() => {
     if (!cronogramaReady) return [] as TimelineTask[];
@@ -347,10 +363,45 @@ export default function LobClientPage() {
     );
   }, [etapasDaObra, obraSelecionada, tarefas]);
 
-  const obraAtual = useMemo(
-    () => obras.find((obra) => obra.id === obraSelecionada) ?? null,
-    [obras, obraSelecionada],
-  );
+  const tarefasPorEtapa = useMemo(() => {
+    const agrupado = new Map<string, TimelineTask[][]>();
+    const agrupamentoTemporal = new Map<string, TimelineTask[]>();
+
+    tarefas.forEach((tarefa) => {
+      const existente = agrupamentoTemporal.get(tarefa.etapa);
+      if (existente) {
+        existente.push(tarefa);
+      } else {
+        agrupamentoTemporal.set(tarefa.etapa, [tarefa]);
+      }
+    });
+
+    agrupamentoTemporal.forEach((lista, etapa) => {
+      const ordenadas = lista
+        .slice()
+        .sort((a, b) => {
+          const inicioDiff = a.inicio.getTime() - b.inicio.getTime();
+          if (inicioDiff !== 0) return inicioDiff;
+          return a.fim.getTime() - b.fim.getTime();
+        });
+
+      const trilhos: TimelineTask[][] = [];
+      ordenadas.forEach((tarefa) => {
+        const trilhoDisponivel = trilhos.find(
+          (trilho) => tarefa.inicio.getTime() > trilho[trilho.length - 1].fim.getTime(),
+        );
+        if (trilhoDisponivel) {
+          trilhoDisponivel.push(tarefa);
+        } else {
+          trilhos.push([tarefa]);
+        }
+      });
+
+      agrupado.set(etapa, trilhos);
+    });
+
+    return agrupado;
+  }, [tarefas]);
 
   const intervalo = useMemo(() => {
     if (tarefas.length === 0) return null as null | { dias: Date[]; inicio: Date; fim: Date };
@@ -405,49 +456,6 @@ export default function LobClientPage() {
     });
     return segmentos;
   }, [intervalo]);
-
-  const tarefasPorEtapa = useMemo(() => {
-    const agrupado = new Map<string, TimelineTask[][]>();
-    const porEtapa = new Map<string, TimelineTask[]>();
-
-    tarefas.forEach((tarefa) => {
-      const lista = porEtapa.get(tarefa.etapa);
-      if (lista) {
-        lista.push(tarefa);
-      } else {
-        porEtapa.set(tarefa.etapa, [tarefa]);
-      }
-    });
-
-    porEtapa.forEach((lista, etapa) => {
-      const ordenadas = [...lista].sort((a, b) => {
-        if (a.inicio.getTime() === b.inicio.getTime()) {
-          return a.fim.getTime() - b.fim.getTime();
-        }
-        return a.inicio.getTime() - b.inicio.getTime();
-      });
-
-      const trilhos: TimelineTask[][] = [];
-      ordenadas.forEach((tarefa) => {
-        let alocada = false;
-        for (const trilho of trilhos) {
-          const ultima = trilho[trilho.length - 1];
-          if (tarefa.inicio.getTime() > ultima.fim.getTime()) {
-            trilho.push(tarefa);
-            alocada = true;
-            break;
-          }
-        }
-        if (!alocada) {
-          trilhos.push([tarefa]);
-        }
-      });
-
-      agrupado.set(etapa, trilhos);
-    });
-
-    return agrupado;
-  }, [tarefas]);
 
   const totalDias = intervalo?.dias.length ?? 0;
 
@@ -531,17 +539,50 @@ export default function LobClientPage() {
 
   useEffect(() => {
     if (!mostrarVisaoCompleta) return;
-    const previous = document.body.style.overflow;
+    const previousOverflow = document.body.style.overflow;
+    const previousClasses = document.body.className;
     document.body.style.overflow = "hidden";
+    document.body.classList.add("lob-fullscreen");
     return () => {
-      document.body.style.overflow = previous;
+      document.body.style.overflow = previousOverflow;
+      document.body.className = previousClasses;
+    };
+  }, [mostrarVisaoCompleta]);
+
+  useEffect(() => {
+    if (!mostrarVisaoCompleta) return;
+    const container = compactWrapperRef.current;
+    if (!container) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
+      event.preventDefault();
+      const delta = event.deltaY;
+      setZoomNivel((current) => {
+        const step = delta > 0 ? -0.1 : 0.1;
+        const next = Math.min(6, Math.max(0.2, Math.round((current + step) * 10) / 10));
+        return next;
+      });
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMostrarVisaoCompleta(false);
+      }
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [mostrarVisaoCompleta]);
 
   useLayoutEffect(() => {
     if (!mostrarVisaoCompleta) {
-      setCompactScale(1);
-      setCompactDimensions({ width: 0, height: 0 });
+      setCompactFitScale(1);
+      setZoomNivel(1);
       return;
     }
     const wrapper = compactWrapperRef.current;
@@ -559,14 +600,13 @@ export default function LobClientPage() {
       const width = contentRect.width;
       const height = contentRect.height;
       if (!width || !height || !wrapperRect.width || !wrapperRect.height) {
-        setCompactScale(1);
-        setCompactDimensions({ width: 0, height: 0 });
+        setCompactFitScale(1);
         return;
       }
 
-      setCompactDimensions({ width, height });
       const scale = Math.min(wrapperRect.width / width, wrapperRect.height / height, 1);
-      setCompactScale(scale > 0 ? scale : 1);
+      const floor = Math.max(0.8, Math.min(scale, 1));
+      setCompactFitScale(floor);
     };
 
     measure();
@@ -715,12 +755,10 @@ export default function LobClientPage() {
         const totalServicosEtapa = trilhos.reduce((acc, trilho) => acc + trilho.length, 0);
         const tracks = trilhos.length > 0 ? trilhos : [[]];
 
-        const servicosLabel = `${totalServicosEtapa} serviço(s)`.toUpperCase();
-
         tracks.forEach((trilho, trackIndex) => {
           const isPrimeiro = trackIndex === 0;
           const row = sheet.addRow([
-            isPrimeiro ? `${etapa}\n${servicosLabel}` : "",
+            isPrimeiro ? etapa : "",
           ]);
           row.height = BAR_HEIGHT + BAR_GAP;
 
@@ -1115,11 +1153,7 @@ export default function LobClientPage() {
                       {mostrarNomeEtapa ? (
                         <span className="leading-snug">{etapa}</span>
                       ) : null}
-                      {mostrarQuantidadeServicos ? (
-                        <span className="text-[0.7rem] font-medium uppercase tracking-[0.15em] text-foreground-muted">
-                          {totalServicosEtapa} serviço(s)
-                        </span>
-                      ) : null}
+                      
                     </div>
                   ) : null}
                   <div className="relative" style={{ width: timelineWidth }}>
@@ -1272,12 +1306,10 @@ export default function LobClientPage() {
           </div>
         </div>
         {mostrarResumo ? (
-          <div className="flex items-center justify-between text-xs text-foreground-muted">
-            <span>
-              Mostrando {etapasOrdenadas.length} etapa(s) • {tarefas.length} serviço(s)
-            </span>
-            <span>
-              Mês atual: {segmentosMes[mesVisivelIndex]?.rotulo ?? ""}
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-foreground-muted">
+            <span>Mostrando {etapasOrdenadas.length} etapa(s)</span>
+            <span className="min-w-[96px] text-right font-semibold text-foreground">
+              {segmentosMes[mesVisivelIndex]?.rotulo ?? "Sem meses"}
             </span>
           </div>
         ) : null}
@@ -1293,6 +1325,16 @@ export default function LobClientPage() {
             <h1 className="text-3xl font-semibold text-foreground">L.O.B</h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="unstyled"
+              size="sm"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[var(--accent)] shadow-sm transition hover:bg-[var(--accent-muted)]"
+              onClick={() => setMostrarVisaoCompleta(true)}
+              disabled={tarefas.length === 0}
+              aria-label="Expandir gráfico"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
             <Button
               variant="unstyled"
               size="sm"
@@ -1424,26 +1466,6 @@ export default function LobClientPage() {
           </div>
         ) : (
           <>
-            <div className="pointer-events-none">
-              <Button
-                type="button"
-                variant="unstyled"
-                className="fixed left-5 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--border)] bg-white text-foreground shadow-sm transition hover:scale-105 hover:bg-[var(--accent-muted)] pointer-events-auto"
-                onClick={irParaMesAnterior}
-                disabled={mesVisivelIndex === 0}
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-              <Button
-                type="button"
-                variant="unstyled"
-                className="fixed right-5 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--border)] bg-white text-foreground shadow-sm transition hover:scale-105 hover:bg-[var(--accent-muted)] pointer-events-auto"
-                onClick={irParaMesSeguinte}
-                disabled={mesVisivelIndex === segmentosMes.length - 1}
-              >
-                <ChevronRight className="h-5 w-5" />
-              </Button>
-            </div>
             {renderTimeline({
               containerRef: scrollContainerRef,
               contentRef: timelineContentRef,
@@ -1455,84 +1477,102 @@ export default function LobClientPage() {
           </>
         )}
       </section>
+      <div className="fixed inset-y-1/2 left-6 z-40 flex -translate-y-1/2 items-center">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-12 w-12 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] shadow-lg hover:bg-[var(--accent-muted)] disabled:opacity-40"
+          onClick={irParaMesAnterior}
+          disabled={mesVisivelIndex === 0 || segmentosMes.length === 0}
+          aria-label="Mês anterior"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </Button>
+      </div>
+      <div className="fixed inset-y-1/2 right-6 z-40 flex -translate-y-1/2 items-center">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-12 w-12 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] shadow-lg hover:bg-[var(--accent-muted)] disabled:opacity-40"
+          onClick={irParaMesSeguinte}
+          disabled={
+            segmentosMes.length === 0 || mesVisivelIndex >= segmentosMes.length - 1
+          }
+          aria-label="Próximo mês"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </Button>
+      </div>
       {mostrarVisaoCompleta ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4">
-          <div className="relative w-full max-w-[1240px] max-h-[90vh] overflow-hidden rounded-3xl bg-card p-6 shadow-2xl">
+        <div className="fixed inset-0 z-40 flex flex-col bg-black/80">
+          <div className="fixed right-6 top-6 z-50 flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/95 px-3 py-2 text-xs font-semibold text-foreground shadow pointer-events-auto">
             <Button
               type="button"
-              variant="unstyled"
-              className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--accent)] shadow-sm transition hover:bg-[var(--accent-muted)]"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] hover:bg-[var(--accent-muted)]"
+              onClick={() => alterarZoom(0.2)}
+              aria-label="Aproximar"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+            <span className="w-16 text-center text-xs font-medium">{Math.round(appliedScale * 100)}%</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] hover:bg-[var(--accent-muted)]"
+              onClick={() => alterarZoom(-0.2)}
+              aria-label="Afastar"
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] hover:bg-[var(--accent-muted)]"
               onClick={() => setMostrarVisaoCompleta(false)}
               aria-label="Fechar visualização completa"
             >
               <X className="h-4 w-4" />
             </Button>
-            {servicosLegenda.length > 0 ? (
-              <div className="pointer-events-auto absolute right-6 top-6 z-10 max-h-[65vh] w-56 overflow-y-auto rounded-2xl border border-[var(--border)] bg-white/90 p-4 shadow-xl backdrop-blur">
-                <h3 className="mb-3 text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-foreground-muted">
-                  Serviços
-                </h3>
-                <div className="space-y-3">
-                  {servicosLegenda.map((servico) => (
-                    <div key={servico.nome} className="flex items-center gap-3">
-                      <span
-                        className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-white shadow"
-                        style={{ backgroundColor: servico.cor }}
-                        aria-hidden
-                      />
-                      <span className="text-xs font-medium text-foreground">
-                        {servico.nome}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+          </div>
+          <div className="flex-1 overflow-hidden px-6 pb-6">
             <div
-              className="mt-6 max-h-[75vh] overflow-hidden"
               ref={compactWrapperRef}
+              className="h-full w-full overflow-auto rounded-3xl border border-[var(--border)] bg-white shadow-inner"
             >
               <div
+                ref={compactContentRef}
+                className="inline-block origin-top-left"
                 style={{
-                  width: compactDimensions.width * compactScale,
-                  height: compactDimensions.height * compactScale,
+                  transform: `scale(${appliedScale})`,
+                  transformOrigin: "top left",
                 }}
               >
-                <div
-                  className="origin-top-left"
-                  style={{
-                    transform: `scale(${compactScale})`,
-                    transformOrigin: "top left",
-                    width: compactDimensions.width || undefined,
-                    height: compactDimensions.height || undefined,
-                  }}
-                >
-                  {renderTimeline({
-                    labelWidth: 0,
-                    mostrarServicoTexto: false,
-                    mostrarResumo: false,
-                    mostrarCabecalhos: false,
-                    mostrarCabecalhoResumo: false,
-                    mostrarNomeEtapa: false,
-                    mostrarQuantidadeServicos: false,
-                    mostrarDiasDetalhados: false,
-                    mostrarEtiquetasDias: false,
-                    mostrarRodape: false,
-                    mostrarFaixasMes: false,
-                    mostrarFaixasEtapa: false,
-                    mostrarGradeVertical: false,
-                    layoutCompacto: true,
-                    dayWidth: 8,
-                    barHeight: 6,
-                    barGap: 4,
-                    contentRef: compactContentRef,
-                  })}
-                </div>
+                {renderTimeline({
+                  mostrarResumo: true,
+                  mostrarCabecalhos: true,
+                  mostrarNomeEtapa: true,
+                  mostrarQuantidadeServicos: false,
+                  mostrarDiasDetalhados: true,
+                  mostrarEtiquetasDias: true,
+                  mostrarRodape: true,
+                  mostrarFaixasMes: true,
+                  mostrarFaixasEtapa: true,
+                  mostrarGradeVertical: true,
+                  containerRef: compactWrapperRef,
+                  contentRef: compactContentRef,
+                })}
               </div>
             </div>
           </div>
         </div>
       ) : null}
+
     </>
   );
 }
