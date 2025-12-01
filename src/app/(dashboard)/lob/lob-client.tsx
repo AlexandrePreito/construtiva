@@ -1509,7 +1509,6 @@ export default function LobClientPage() {
             <Button
               type="button"
               variant="ghost"
-              size="icon"
               className="h-8 w-8 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] hover:bg-[var(--accent-muted)]"
               onClick={() => alterarZoom(0.2)}
               aria-label="Aproximar"
@@ -1520,7 +1519,6 @@ export default function LobClientPage() {
             <Button
               type="button"
               variant="ghost"
-              size="icon"
               className="h-8 w-8 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] hover:bg-[var(--accent-muted)]"
               onClick={() => alterarZoom(-0.2)}
               aria-label="Afastar"
@@ -1530,7 +1528,6 @@ export default function LobClientPage() {
             <Button
               type="button"
               variant="ghost"
-              size="icon"
               className="h-8 w-8 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] hover:bg-[var(--accent-muted)]"
               onClick={() => setMostrarVisaoCompleta(false)}
               aria-label="Fechar visualização completa"
