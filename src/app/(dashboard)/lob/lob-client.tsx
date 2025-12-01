@@ -1481,7 +1481,6 @@ export default function LobClientPage() {
         <Button
           type="button"
           variant="ghost"
-          size="icon"
           className="h-12 w-12 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] shadow-lg hover:bg-[var(--accent-muted)] disabled:opacity-40"
           onClick={irParaMesAnterior}
           disabled={mesVisivelIndex === 0 || segmentosMes.length === 0}
@@ -1494,7 +1493,6 @@ export default function LobClientPage() {
         <Button
           type="button"
           variant="ghost"
-          size="icon"
           className="h-12 w-12 rounded-full border border-[var(--border)] bg-white text-[var(--accent)] shadow-lg hover:bg-[var(--accent-muted)] disabled:opacity-40"
           onClick={irParaMesSeguinte}
           disabled={
